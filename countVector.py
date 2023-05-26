@@ -1,12 +1,11 @@
 # https://dacon.io/en/competitions/official/235946/codeshare/6017
 
 import os
-import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 
 # Get the list of txt files in the directory
 
-path_dir = "D:/OneDrive - Obigo Inc/문서/LDA"
+path_dir = "/Users/hanna/data/lda"
 txt_files = os.listdir(path_dir)
 
 

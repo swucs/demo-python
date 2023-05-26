@@ -2,13 +2,12 @@
 
 import os
 import re
-import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 
 # Get the list of txt files in the directory
 
-path_dir  = "D:/OneDrive - Obigo Inc/문서/LDA"
+path_dir  = "/Users/hanna/data/lda"
 txt_files = os.listdir(path_dir)
 p_summary_section = re.compile('\【[A-Za-z\s]*SUMMARY[A-Za-z\s]*\】')   #[SUMMARY]정규식
 p_not_summary_section = re.compile('\【[A-Za-z\s]+\】')              #[xxx]섹션 정규식
@@ -22,6 +21,9 @@ dict_file_summary = {}
 for txt_file_name in txt_files:
     #파일의 전체경로
     file_fullPath = path_dir + '/' + txt_file_name
+
+    if '.txt' not in txt_file_name:
+        continue
     
     #파일 내용 읽기
     with open(file_fullPath, "rt", encoding="UTF-8") as f:
@@ -61,34 +63,29 @@ for txt_file_name in txt_files:
 #         print(word)
 
 
+def do_lda(count_vect, sentence_array, topic_count, keyword_count):
 
+    #단어의 갯수가 저장됨
+    word_counts = count_vect.fit_transform(sentence_array)
 
-# Create a TF-IDF vectorizer
-count_vect = CountVectorizer(max_df=0.95, max_features=1000, min_df=2, stop_words='english', ngram_range=(1,2))
+    #CountVectorizer객체 내의 전체 word의 명칭을 get_feature_names()을 통해 추출
+    feature_names = count_vect.get_feature_names_out()
 
-# Transform the text into a TF-IDF matrix
-word_counts = count_vect.fit_transform(total_lines)
+    #Create an LDA model
+    lda_model = LatentDirichletAllocation(n_components=topic_count)
 
-#CountVectorizer객체 내의 전체 word의 명칭을 get_feature_names()을 통해 추출
-feature_names = count_vect.get_feature_names_out()
-# print(feature_names)
+    #LDA 수행?
+    lda_model.fit(word_counts)
 
+    # 토픽별 단어
+    dict_topic_words = {}
 
-# Create an LDA model
-lda = LatentDirichletAllocation(n_components=5)
-
-# Fit the LDA model to the TF-IDF matrix
-lda.fit(word_counts)
-
-#토픽별 단어
-dict_topic_words = {}
-def save_topics(model, feature_names, no_top_words):
-    for topic_index, topic in enumerate(model.components_):
-        print('Topic #', topic_index)
+    for topic_index, topic in enumerate(lda_model.components_):
+        # print('Topic #', topic_index)
 
         #components_ array에서 가장 값이 큰 순으로 정렬했을 때, 그 값의 array인덱스를 반환.
         topic_word_indexes = topic.argsort()[::-1]
-        topic_word_index=topic_word_indexes[:no_top_words]
+        topic_word_index=topic_word_indexes[:keyword_count]
 
         #top_indexes대상인 인덱스별로 feature_names에 해당하는 word feature 추출 후 join concat
         feature_concat = ' '.join([feature_names[i] for i in topic_word_index])
@@ -98,11 +95,17 @@ def save_topics(model, feature_names, no_top_words):
         dict_topic_words[topic_index] = [feature_names[i] for i in topic_word_index]
 
 
-save_topics(lda, feature_names, 10)
+    return dict_topic_words
+
+
+#LDA수행하기(5개의 토픽, 10개의 키워드)
+count_vect = CountVectorizer(max_df=0.95, max_features=1000, min_df=2, stop_words='english', ngram_range=(1, 2)) #단어의 갯수를 세기 위한 Vector???
+dict_topic_words = do_lda(count_vect, total_lines, 5, 10)
 
 words_topic0 = dict_topic_words[0]
-print(words_topic0)
+print("0번 토픽 : " + str(words_topic0))
 
+dict_file_word_count_sum = {}
 for filename in dict_file_words:
     word_count_sum = 0
     if filename in dict_file_words:
@@ -111,4 +114,37 @@ for filename in dict_file_words:
         for word in words_topic0:
             if word in dict_word_counts:
                 word_count_sum += dict_word_counts[word]
-    print(filename + " : " + str(word_count_sum))
+    # print(filename + " : " + str(word_count_sum))
+    dict_file_word_count_sum[filename] = word_count_sum
+
+
+# word 갯수가 많은 문서대로 역정렬한다.
+dict_file_word_count_sum = dict(sorted(dict_file_word_count_sum.items(), key=lambda x: x[1], reverse=True))
+print(dict_file_word_count_sum)
+print("")
+
+#word갯수가 많은 10개 문서에 대해 Summary의 LDA를 돌린다.
+PICK_FILE_COUNT = 10
+count_vect = CountVectorizer(stop_words='english') #단어의 갯수를 세기 위한 Vector???
+i = 0
+for filename in dict_file_word_count_sum.keys():
+    i = i + 1
+    if i > PICK_FILE_COUNT:
+        break
+
+    print(filename)
+
+    #Summary가져오기
+    if filename in dict_file_summary:
+        summaryText = dict_file_summary[filename]
+
+        #LDA 수행
+        dict_topic_words_summary = do_lda(count_vect, [summaryText], 5, 10)
+        print(dict_topic_words_summary)
+        for key, value in dict_topic_words_summary.items():
+            print(str(key) + ":" + str(value))
+
+    else:
+        print("Summary 없음")
+
+    print("")
